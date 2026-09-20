@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { formatFileSize } from '../services/imageService';
 import { ImageStats, ImageFormat } from '../types';
 
@@ -19,6 +19,23 @@ const PreviewArea: React.FC<PreviewAreaProps> = ({ originalUrl, compressedUrl, s
     : 0;
 
   const useVideoTagForOutput = stats.isAnimated && outputFormat === ImageFormat.WEBM;
+
+  const originalVideoRef = useRef<HTMLVideoElement>(null);
+  const compressedVideoRef = useRef<HTMLVideoElement>(null);
+
+  // Sync videos when compressed video appears
+  useEffect(() => {
+    if (compressedUrl && !isProcessing) {
+      if (originalVideoRef.current) {
+        originalVideoRef.current.currentTime = 0;
+        originalVideoRef.current.play().catch(e => console.log(e));
+      }
+      if (compressedVideoRef.current) {
+        compressedVideoRef.current.currentTime = 0;
+        compressedVideoRef.current.play().catch(e => console.log(e));
+      }
+    }
+  }, [compressedUrl, isProcessing]);
 
   return (
     <div className="flex flex-col space-y-4">
@@ -42,7 +59,7 @@ const PreviewArea: React.FC<PreviewAreaProps> = ({ originalUrl, compressedUrl, s
             title="Click to change image"
           >
              {isVideo ? (
-                 <video src={originalUrl} autoPlay loop muted playsInline className="max-w-full max-h-full object-contain" />
+                 <video ref={originalVideoRef} src={originalUrl} autoPlay loop muted playsInline className="max-w-full max-h-full object-contain" />
              ) : (
                  <img src={originalUrl} alt="Original" className="max-w-full max-h-full object-contain" />
              )}
@@ -86,7 +103,7 @@ const PreviewArea: React.FC<PreviewAreaProps> = ({ originalUrl, compressedUrl, s
              ) : compressedUrl ? (
                  <>
                     {useVideoTagForOutput ? (
-                        <video src={compressedUrl} autoPlay loop muted playsInline className="max-w-full max-h-full object-contain" />
+                        <video ref={compressedVideoRef} src={compressedUrl} autoPlay loop muted playsInline className="max-w-full max-h-full object-contain" />
                     ) : (
                         <img src={compressedUrl} alt="Compressed" className="max-w-full max-h-full object-contain" />
                     )}

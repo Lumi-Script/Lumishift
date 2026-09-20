@@ -5,6 +5,8 @@ class WebPMuxer {
   private chunks: Uint8Array[] = [];
   private width: number;
   private height: number;
+  private lastMediaTime: number = -1;
+  private lastDurationOffset: number = -1;
 
   constructor(width: number, height: number) {
     this.width = width;
@@ -17,9 +19,17 @@ class WebPMuxer {
     view.setUint8(offset + 2, (value >> 16) & 0xFF);
   }
 
-  addVideoChunk(chunk: EncodedVideoChunk, durationMs: number) {
+  addVideoChunk(chunk: EncodedVideoChunk, currentMediaTime: number) {
     const vp8Data = new Uint8Array(chunk.byteLength);
     chunk.copyTo(vp8Data);
+
+    if (this.lastMediaTime !== -1 && this.lastDurationOffset !== -1 && this.chunks.length > 0) {
+        const durationMs = (currentMediaTime - this.lastMediaTime) * 1000;
+        const lastChunk = this.chunks[this.chunks.length - 1];
+        const lastView = new DataView(lastChunk.buffer);
+        this.write24(lastView, this.lastDurationOffset, Math.max(1, Math.round(durationMs)));
+    }
+    this.lastMediaTime = currentMediaTime;
 
     const isOdd = vp8Data.length % 2 !== 0;
     const pad = isOdd ? 1 : 0;
@@ -40,8 +50,11 @@ class WebPMuxer {
     this.write24(view, 14, this.width - 1);
     // height - 1
     this.write24(view, 17, this.height - 1);
-    // duration
-    this.write24(view, 20, Math.round(durationMs));
+    
+    // duration (default 100ms, overwritten by next frame)
+    this.write24(view, 20, 100);
+    this.lastDurationOffset = 20;
+    
     // flags = 0
     view.setUint8(23, 0);
     
@@ -92,9 +105,14 @@ export const convertVideoToWebm = async (
   file: File, 
   settings: CompressionSettings,
   targetMimeType: string = 'video/webm',
-  onProgress?: (progress: number) => void
+  onProgress?: (progress: number) => void,
+  signal?: AbortSignal
 ): Promise<{ blob: Blob; url: string; width: number; height: number }> => {
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+        return reject(new Error("Aborted"));
+    }
+
     const video = document.createElement('video');
     video.autoplay = false;
     video.muted = true;
@@ -102,6 +120,18 @@ export const convertVideoToWebm = async (
 
     const url = URL.createObjectURL(file);
     video.src = url;
+
+    const cleanup = () => {
+        URL.revokeObjectURL(url);
+    };
+
+    signal?.addEventListener('abort', () => {
+        finished = true;
+        cleanup();
+        reject(new Error("Aborted"));
+    });
+
+    let finished = false;
 
     video.onloadedmetadata = async () => {
       try {
@@ -130,12 +160,11 @@ export const convertVideoToWebm = async (
         if (!ctx) throw new Error('No canvas context');
 
         const isWebp = targetMimeType === 'image/webp';
-        const fps = 24;
-        const durationMs = 1000 / fps;
-
-        const webPMuxer = isWebp ? new WebPMuxer(targetWidth, targetHeight) : null;
+        const fps = 24; // Used for bitrate math only, frames are physically timed
         
         // Use webm-muxer ONLY for webm output
+        const webPMuxer = isWebp ? new WebPMuxer(targetWidth, targetHeight) : null;
+        
         const muxer = !isWebp ? new Muxer({
           target: new ArrayBufferTarget(),
           video: {
@@ -148,8 +177,9 @@ export const convertVideoToWebm = async (
 
         const videoEncoder = new VideoEncoder({
           output: (chunk, meta) => {
+             const currentMediaTime = chunk.timestamp / 1000000;
              if (isWebp && webPMuxer) {
-                 webPMuxer.addVideoChunk(chunk, durationMs);
+                 webPMuxer.addVideoChunk(chunk, currentMediaTime);
              } else if (muxer) {
                  muxer.addVideoChunk(chunk, meta);
              }
@@ -165,17 +195,13 @@ export const convertVideoToWebm = async (
               codec: 'vp8',
               width: targetWidth,
               height: targetHeight,
-              bitrate: 1e6 * (0.1 + settings.quality * 2), 
-              framerate: fps,
+              bitrate: 1e6 * (0.1 + settings.quality * 2)
             });
         } catch (e: any) {
             throw new Error("Failed to configure VideoEncoder (codec might not be supported): " + e.message);
         }
 
-        let framesEncoded = 0;
         let finished = false;
-
-        video.playbackRate = 8.0; 
 
         const finishExport = async () => {
             if (finished) return;
@@ -215,7 +241,9 @@ export const convertVideoToWebm = async (
             }
         }, 500);
 
-        const extractLoop = async () => {
+        video.playbackRate = 4.0; // Fast extraction!
+
+        const extractLoop = async (now: DOMHighResTimeStamp, metadata: any) => {
           if (finished) return;
           
           if (video.currentTime >= duration || video.ended) {
@@ -225,18 +253,19 @@ export const convertVideoToWebm = async (
 
           try {
             ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
-            const timestamp = framesEncoded * (1000000 / fps);
+            
+            // Extract the actual physical timestamp from the video stream
+            const mediaTime = metadata?.mediaTime ?? video.currentTime;
+            const timestamp = Math.round(mediaTime * 1000000);
+            
             const frame = new VideoFrame(canvas, { timestamp });
             
             if (videoEncoder.encodeQueueSize > 15) {
                await new Promise(r => setTimeout(r, 10));
             }
             
-            // WebP animation requires true intra-frames (keyframes).
-            // WebM can use delta frames perfectly fine.
             videoEncoder.encode(frame, { keyFrame: isWebp });
             frame.close();
-            framesEncoded++;
             
             if (onProgress) {
               onProgress(Math.min(0.99, video.currentTime / duration));
@@ -245,7 +274,7 @@ export const convertVideoToWebm = async (
             if ('requestVideoFrameCallback' in video) {
               (video as any).requestVideoFrameCallback(extractLoop);
             } else {
-              requestAnimationFrame(extractLoop);
+              requestAnimationFrame((now) => extractLoop(now, { mediaTime: video.currentTime }));
             }
           } catch (e) {
             if (!finished) reject(e);
@@ -255,7 +284,7 @@ export const convertVideoToWebm = async (
         if ('requestVideoFrameCallback' in video) {
           (video as any).requestVideoFrameCallback(extractLoop);
         } else {
-          requestAnimationFrame(extractLoop);
+          requestAnimationFrame((now) => extractLoop(now, { mediaTime: video.currentTime }));
         }
         
         video.play().catch((e) => {

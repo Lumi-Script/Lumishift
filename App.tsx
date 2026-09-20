@@ -41,6 +41,7 @@ const App: React.FC = () => {
 
   // Debounce compression to avoid lag on slider drag
   const [debouncedSettings, setDebouncedSettings] = useState(settings);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -51,6 +52,9 @@ const App: React.FC = () => {
 
   // Handle File Upload
   const handleFileSelect = async (selectedFile: File) => {
+    if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+    }
     setFile(selectedFile);
     
     let objectUrl = URL.createObjectURL(selectedFile);
@@ -107,9 +111,14 @@ const App: React.FC = () => {
       }
   };
 
-  // Run Compression (Only when in Compress Tab to save resources, or if generic logic required)
-  // We keep it running in background so switching tabs is snappy
+  // Run Compression
   useEffect(() => {
+    if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     const runCompression = async () => {
       if (!file || !frameUrl) return;
 
@@ -118,12 +127,15 @@ const App: React.FC = () => {
       try {
         let result;
         if (file.type === 'video/mp4' && (debouncedSettings.format === ImageFormat.WEBM || debouncedSettings.format === ImageFormat.WEBP)) {
-            result = await convertVideoToWebm(file, debouncedSettings, debouncedSettings.format, (p) => setProgress(Math.round(p * 100)));
+            result = await convertVideoToWebm(file, debouncedSettings, debouncedSettings.format, (p) => {
+                if (!controller.signal.aborted) setProgress(Math.round(p * 100));
+            }, controller.signal);
+            if (controller.signal.aborted) return;
             setStats(prev => ({ ...prev, isAnimated: true }));
         } else {
             const img = await loadImage(frameUrl);
             result = await compressImage(img, debouncedSettings);
-            // If the input was an MP4 but they chose a static format, reset isAnimated
+            if (controller.signal.aborted) return;
             setStats(prev => ({ ...prev, isAnimated: (file.type === 'video/mp4' ? false : prev.isAnimated) }));
         }
         
@@ -138,17 +150,21 @@ const App: React.FC = () => {
             compressedHeight: result.height
         }));
 
-      } catch (error) {
-        console.error("Compression failed", error);
+      } catch (error: any) {
+        if (error.message !== "Aborted") {
+            console.error("Compression failed", error);
+        }
       } finally {
-        setIsProcessing(false);
-        setProgress(0);
+        if (!controller.signal.aborted) {
+            setIsProcessing(false);
+            setProgress(0);
+        }
       }
     };
 
     runCompression();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSettings, file, frameUrl]);
+  }, [debouncedSettings, file, frameUrl]); 
 
   const isOutputAnimated = file?.type === 'video/mp4' && (settings.format === ImageFormat.WEBM || settings.format === ImageFormat.WEBP);
   const isAnimatedButOutputStatic = (stats.isAnimated || file?.type === 'video/mp4') && settings.format !== ImageFormat.WEBM && settings.format !== ImageFormat.WEBP;
