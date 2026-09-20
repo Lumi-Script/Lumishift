@@ -8,15 +8,51 @@ export const formatFileSize = (bytes: number): string => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
-export const loadImage = (file: File): Promise<HTMLImageElement> => {
+export const loadVideoFrame = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const video = document.createElement('video');
+    video.autoplay = false;
+    video.muted = true;
+    video.playsInline = true;
+    
+    video.onloadeddata = () => {
+      video.currentTime = 0.1;
+    };
+    
+    video.onseeked = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/png'));
+      } else {
+        reject(new Error('Could not get canvas context'));
+      }
+      URL.revokeObjectURL(url);
+    };
+    
+    video.onerror = (e) => {
+      URL.revokeObjectURL(url);
+      reject(e);
+    };
+    
+    video.src = url;
+    video.load();
+  });
+};
+
+export const loadImage = (source: File | string): Promise<HTMLImageElement> => {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    const url = URL.createObjectURL(file);
+    const url = typeof source === 'string' ? source : URL.createObjectURL(source);
     img.onload = () => {
       resolve(img);
     };
     img.onerror = (e) => {
-      URL.revokeObjectURL(url);
+      if (typeof source !== 'string') URL.revokeObjectURL(url);
       reject(e);
     };
     img.src = url;

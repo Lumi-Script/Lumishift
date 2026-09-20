@@ -9,9 +9,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
-    "react-image-crop": "^11.1.2"
+    "react-image-crop": "^11.1.2",
+    "webm-muxer": "^5.1.4"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",

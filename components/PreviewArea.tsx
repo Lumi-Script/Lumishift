@@ -1,19 +1,24 @@
 import React from 'react';
 import { formatFileSize } from '../services/imageService';
-import { ImageStats } from '../types';
+import { ImageStats, ImageFormat } from '../types';
 
 interface PreviewAreaProps {
   originalUrl: string;
   compressedUrl: string | null;
   stats: ImageStats;
   isProcessing: boolean;
+  progress?: number;
   onOriginalClick: () => void;
+  isVideo?: boolean;
+  outputFormat?: ImageFormat;
 }
 
-const PreviewArea: React.FC<PreviewAreaProps> = ({ originalUrl, compressedUrl, stats, isProcessing, onOriginalClick }) => {
+const PreviewArea: React.FC<PreviewAreaProps> = ({ originalUrl, compressedUrl, stats, isProcessing, progress, onOriginalClick, isVideo, outputFormat }) => {
   const savings = stats.originalSize > 0 
     ? Math.round(((stats.originalSize - stats.compressedSize) / stats.originalSize) * 100)
     : 0;
+
+  const useVideoTagForOutput = stats.isAnimated && outputFormat === ImageFormat.WEBM;
 
   return (
     <div className="flex flex-col space-y-4">
@@ -36,7 +41,11 @@ const PreviewArea: React.FC<PreviewAreaProps> = ({ originalUrl, compressedUrl, s
             className="relative aspect-video bg-slate-800/50 rounded-xl overflow-hidden border border-slate-700 flex items-center justify-center cursor-pointer group transition-colors hover:border-cyan-500/50"
             title="Click to change image"
           >
-             <img src={originalUrl} alt="Original" className="max-w-full max-h-full object-contain" />
+             {isVideo ? (
+                 <video src={originalUrl} autoPlay loop muted playsInline className="max-w-full max-h-full object-contain" />
+             ) : (
+                 <img src={originalUrl} alt="Original" className="max-w-full max-h-full object-contain" />
+             )}
              
              {/* Hover Overlay */}
              <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white backdrop-blur-[2px]">
@@ -60,16 +69,27 @@ const PreviewArea: React.FC<PreviewAreaProps> = ({ originalUrl, compressedUrl, s
           </div>
           <div className="relative aspect-video bg-slate-800/50 rounded-xl overflow-hidden border border-slate-700 flex items-center justify-center">
              {isProcessing ? (
-                 <div className="flex flex-col items-center gap-3 text-cyan-500">
+                 <div className="flex flex-col items-center gap-3 text-cyan-500 w-full max-w-[80%] mx-auto">
                     <svg className="animate-spin h-8 w-8" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
-                    <span className="text-sm animate-pulse">Compressing...</span>
+                    <span className="text-sm animate-pulse">
+                       Compressing... {progress !== undefined && progress > 0 ? `${progress}%` : ''}
+                    </span>
+                    {progress !== undefined && progress > 0 && (
+                       <div className="w-full bg-slate-700 rounded-full h-1.5 mt-2 overflow-hidden">
+                          <div className="bg-cyan-500 h-1.5 rounded-full transition-all duration-300" style={{ width: `${progress}%` }}></div>
+                       </div>
+                    )}
                  </div>
              ) : compressedUrl ? (
                  <>
-                    <img src={compressedUrl} alt="Compressed" className="max-w-full max-h-full object-contain" />
+                    {useVideoTagForOutput ? (
+                        <video src={compressedUrl} autoPlay loop muted playsInline className="max-w-full max-h-full object-contain" />
+                    ) : (
+                        <img src={compressedUrl} alt="Compressed" className="max-w-full max-h-full object-contain" />
+                    )}
                     <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-md flex items-center gap-2">
                         {formatFileSize(stats.compressedSize)}
                         {savings > 0 && <span className="text-green-400 font-bold">(-{savings}%)</span>}

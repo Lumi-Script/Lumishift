@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { CompressionSettings, ImageFormat, ImageStats } from './types';
-import { compressImage, loadImage, fileToBase64, isAnimatedWebP } from './services/imageService';
+import { compressImage, loadImage, fileToBase64, isAnimatedWebP, loadVideoFrame } from './services/imageService';
+import { convertVideoToWebm } from './services/videoService';
 import UploadArea from './components/UploadArea';
 import SettingsPanel from './components/SettingsPanel';
 import PreviewArea from './components/PreviewArea';
@@ -11,9 +12,11 @@ import './index.css'
 const App: React.FC = () => {
   const [file, setFile] = useState<File | null>(null);
   const [originalUrl, setOriginalUrl] = useState<string | null>(null);
+  const [frameUrl, setFrameUrl] = useState<string | null>(null);
   const [compressedUrl, setCompressedUrl] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isCropping, setIsCropping] = useState(false);
+  const [progress, setProgress] = useState(0);
   
   // Hidden input ref for re-uploading from preview area
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -49,14 +52,25 @@ const App: React.FC = () => {
   // Handle File Upload
   const handleFileSelect = async (selectedFile: File) => {
     setFile(selectedFile);
-    setOriginalUrl(URL.createObjectURL(selectedFile));
-    setCompressedUrl(null);
     
-    // Check for animation
-    const animated = await isAnimatedWebP(selectedFile);
+    let objectUrl = URL.createObjectURL(selectedFile);
+    let extractedFrameUrl = objectUrl;
+    let animated = false;
+    let img: HTMLImageElement;
+
+    if (selectedFile.type === 'video/mp4') {
+        extractedFrameUrl = await loadVideoFrame(selectedFile);
+        img = await loadImage(extractedFrameUrl);
+    } else {
+        animated = await isAnimatedWebP(selectedFile);
+        img = await loadImage(objectUrl);
+    }
+
+    setOriginalUrl(objectUrl);
+    setFrameUrl(extractedFrameUrl);
+    setCompressedUrl(null);
 
     // Initial stats for original
-    const img = await loadImage(selectedFile);
     setStats(prev => ({
         ...prev,
         originalSize: selectedFile.size,
@@ -75,16 +89,14 @@ const App: React.FC = () => {
 
     if (selectedFile.type === 'image/png') {
         initialFormat = ImageFormat.PNG;
-        // For PNG, we default to 100% quality (lossless) unless AI says otherwise, 
-        // to avoid immediate degradation, but this might increase file size.
-        // User can then lower it.
         initialQuality = 1; 
     }
     if (selectedFile.type === 'image/jpeg') initialFormat = ImageFormat.JPEG;
+    if (selectedFile.type === 'video/mp4') initialFormat = ImageFormat.WEBM;
     
     setSettings({
         quality: initialQuality,
-        format: initialFormat === ImageFormat.PNG ? ImageFormat.PNG : ImageFormat.WEBP,
+        format: initialFormat === ImageFormat.PNG ? ImageFormat.PNG : (initialFormat === ImageFormat.WEBM ? ImageFormat.WEBM : ImageFormat.WEBP),
         scale: 1
     });
   };
@@ -99,12 +111,21 @@ const App: React.FC = () => {
   // We keep it running in background so switching tabs is snappy
   useEffect(() => {
     const runCompression = async () => {
-      if (!file || !originalUrl) return;
+      if (!file || !frameUrl) return;
 
       setIsProcessing(true);
+      setProgress(0);
       try {
-        const img = await loadImage(file);
-        const result = await compressImage(img, debouncedSettings);
+        let result;
+        if (file.type === 'video/mp4' && (debouncedSettings.format === ImageFormat.WEBM || debouncedSettings.format === ImageFormat.WEBP)) {
+            result = await convertVideoToWebm(file, debouncedSettings, debouncedSettings.format, (p) => setProgress(Math.round(p * 100)));
+            setStats(prev => ({ ...prev, isAnimated: true }));
+        } else {
+            const img = await loadImage(frameUrl);
+            result = await compressImage(img, debouncedSettings);
+            // If the input was an MP4 but they chose a static format, reset isAnimated
+            setStats(prev => ({ ...prev, isAnimated: (file.type === 'video/mp4' ? false : prev.isAnimated) }));
+        }
         
         // Revoke old url to prevent leaks
         if (compressedUrl) URL.revokeObjectURL(compressedUrl);
@@ -121,19 +142,23 @@ const App: React.FC = () => {
         console.error("Compression failed", error);
       } finally {
         setIsProcessing(false);
+        setProgress(0);
       }
     };
 
     runCompression();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSettings, file, originalUrl]); 
+  }, [debouncedSettings, file, frameUrl]);
+
+  const isOutputAnimated = file?.type === 'video/mp4' && (settings.format === ImageFormat.WEBM || settings.format === ImageFormat.WEBP);
+  const isAnimatedButOutputStatic = (stats.isAnimated || file?.type === 'video/mp4') && settings.format !== ImageFormat.WEBM && settings.format !== ImageFormat.WEBP;
 
   const handleDownload = () => {
       if (!compressedUrl) return;
       const link = document.createElement('a');
       link.href = compressedUrl;
       const ext = settings.format.split('/')[1];
-      link.download = `optipix_compressed${stats.isAnimated ? '_frame' : ''}.${ext}`;
+      link.download = `optipix_compressed${isAnimatedButOutputStatic ? '_frame' : ''}.${ext}`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -148,7 +173,7 @@ const App: React.FC = () => {
             type="file" 
             ref={fileInputRef} 
             onChange={handleHiddenInputChange} 
-            accept="image/*" 
+            accept="image/*,video/mp4" 
             className="hidden" 
         />
 
@@ -192,23 +217,24 @@ const App: React.FC = () => {
                             settings={settings} 
                             onChange={setSettings} 
                             isAnimated={stats.isAnimated}
+                            fileType={file.type}
                             onCropClick={() => setIsCropping(true)}
                         />
                         <div className="mt-4">
                              <Button 
                                 onClick={handleDownload} 
-                                variant={isFileSizeIncreased && !stats.isAnimated ? 'warning' : 'primary'}
+                                variant={isFileSizeIncreased && !isOutputAnimated ? 'warning' : 'primary'}
                                 className="w-full py-4 text-lg"
                                 disabled={!compressedUrl}
                              >
-                                {stats.isAnimated ? 'Download Static Frame' : (isFileSizeIncreased ? 'Download Anyway (Larger Size)' : 'Download Compressed Image')}
+                                {isAnimatedButOutputStatic ? 'Download Static Frame' : (isOutputAnimated ? 'Download Animated Media' : (isFileSizeIncreased ? 'Download Anyway (Larger Size)' : 'Download Compressed Image'))}
                              </Button>
-                             {isFileSizeIncreased && !stats.isAnimated && (
+                             {isFileSizeIncreased && !isOutputAnimated && (
                                 <p className="text-xs text-amber-500 text-center mt-2">
                                     The compressed file is larger than the original. Try reducing Quality, Resolution, or changing Format.
                                 </p>
                              )}
-                             {stats.isAnimated && (
+                             {isAnimatedButOutputStatic && (
                                 <p className="text-xs text-amber-500 text-center mt-2">
                                     Warning: Download will be a single static frame.
                                 </p>
@@ -224,25 +250,28 @@ const App: React.FC = () => {
                     </div>
 
                     {/* RIGHT PANEL: Preview */}
-                    <div className="lg:col-span-2 order-1 lg:order-1">
+                     <div className="lg:col-span-2 order-1 lg:order-1">
                          {originalUrl && (
                             <PreviewArea 
                                 originalUrl={originalUrl} 
                                 compressedUrl={compressedUrl} 
                                 stats={stats} 
                                 isProcessing={isProcessing}
+                                progress={progress}
                                 onOriginalClick={() => fileInputRef.current?.click()}
+                                isVideo={file?.type === 'video/mp4'}
+                                outputFormat={debouncedSettings.format}
                             />
                          )}
-                    </div>
+                     </div>
                 </div>
             )}
         </main>
 
-        {isCropping && file && originalUrl && (
+        {isCropping && file && frameUrl && (
             <CropModal
                 file={file}
-                originalUrl={originalUrl}
+                originalUrl={frameUrl}
                 onClose={() => setIsCropping(false)}
                 onApply={(croppedFile) => {
                     handleFileSelect(croppedFile);

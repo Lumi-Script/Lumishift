@@ -33,10 +33,10 @@ const UploadArea: React.FC<UploadAreaProps> = ({ onFileSelect }) => {
   };
 
   const validateAndProcess = (file: File) => {
-    if (file.type.startsWith('image/')) {
+    if (file.type.startsWith('image/') || file.type === 'video/mp4') {
       onFileSelect(file);
     } else {
-      alert('Please upload a valid image file.');
+      alert('Please upload a valid image or MP4 file.');
     }
   };
 
@@ -56,7 +56,7 @@ const UploadArea: React.FC<UploadAreaProps> = ({ onFileSelect }) => {
         type="file" 
         ref={fileInputRef} 
         onChange={handleFileInput} 
-        accept="image/*" 
+        accept="image/*,video/mp4" 
         className="hidden" 
       />
       
@@ -68,10 +68,10 @@ const UploadArea: React.FC<UploadAreaProps> = ({ onFileSelect }) => {
         </div>
         <div>
             <p className="text-lg font-medium text-slate-200">
-                Click or drag image to upload
+                Click or drag file to upload
             </p>
             <p className="text-sm text-slate-400 mt-1">
-                Supports JPG, PNG, WebP
+                Supports JPG, PNG, WebP, MP4
             </p>
         </div>
       </div>
