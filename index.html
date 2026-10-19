@@ -3,30 +3,162 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Lumishift - Smart Image Compressor</title>
+    <title>Lumishift - Free Browser-Side Image Compressor & Converter | 100% Private</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="description" content="Optimize your images for the web with Lumishift. Free, secure, browser-side image compression for JPEG, PNG, and WebP." />
-    <meta name="keywords" content="image compression, compress images, optimize images, webp converter, lossless compression, browser image optimizer, image resize" />
+    <meta name="description" content="Compress images and videos securely in your browser. Lumishift provides client-side compression, format conversion (WebP, JPEG, PNG, WebM), custom cropping, and quality control—from 100% lossless full quality to ultra-compact web optimization. No server uploads, 100% private." />
+    <meta name="keywords" content="browser image compressor, client-side image compression, lossless image compression, webp converter, compress jpeg online, optimize png without quality loss, keep full image quality, reduce image file size, private image compressor no upload, browser-side video to webm, free image compressor" />
     <meta name="author" content="Lumishift" />
-    <meta name="robots" content="index, follow" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
     <link rel="canonical" href="https://lumishift.lumi-script.dev/" />
-    <meta name="theme-color" content="#ffffff" />
+    <meta name="theme-color" content="#0f172a" />
     
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://lumishift.lumi-script.dev/" />
-    <meta property="og:title" content="Lumishift - Smart Image Compressor" />
-    <meta property="og:description" content="Optimize your images for the web with Lumishift. Free, secure, browser-side image compression for JPEG, PNG, and WebP." />
+    <meta property="og:title" content="Lumishift - Free Browser-Side Image Compressor & Converter" />
+    <meta property="og:description" content="Compress and convert images directly in your browser. Total privacy with zero server uploads. Choose full quality preservation or extreme compression for web performance." />
+    <meta property="og:image" content="https://lumishift.lumi-script.dev/og-image.png" />
     
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta property="twitter:url" content="https://lumishift.lumi-script.dev/" />
-    <meta name="twitter:title" content="Lumishift - Smart Image Compressor" />
-    <meta name="twitter:description" content="Optimize your images for the web with Lumishift. Free, secure, browser-side image compression for JPEG, PNG, and WebP." />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <meta name="twitter:title" content="Lumishift - Free Browser-Side Image Compressor & Converter" />
+    <meta name="twitter:description" content="Compress and convert images directly in your browser. Total privacy with zero server uploads. Choose full quality preservation or extreme compression for web performance." />
+    <meta name="twitter:image" content="https://lumishift.lumi-script.dev/og-image.png" />
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <!-- Schema.org WebApplication & FAQPage JSON-LD Structured Data for Googlebot -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "WebApplication",
+          "@id": "https://lumishift.lumi-script.dev/#webapp",
+          "name": "Lumishift",
+          "url": "https://lumishift.lumi-script.dev/",
+          "applicationCategory": "MultimediaApplication",
+          "operatingSystem": "All modern web browsers (Chrome, Edge, Safari, Firefox)",
+          "browserRequirements": "Requires JavaScript and HTML5 Canvas support",
+          "description": "Secure, browser-side image and video compression tool. Compress and convert WebP, JPEG, PNG, and WebM entirely client-side with full quality or high compression settings. 100% private with no server uploads.",
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+          },
+          "featureList": [
+            "100% Browser-side processing with zero server uploads",
+            "Keep 100% full original quality (lossless / archival mode)",
+            "Continuous quality slider from 1% to 100%",
+            "Next-gen Google WebP and WebM conversion",
+            "Custom PNG color depth quantization to prevent canvas bloat",
+            "Resolution downscaling and interactive crop tool",
+            "Side-by-side real-time comparison preview with byte savings calculation",
+            "Free with no file size caps or subscriptions"
+          ]
+        },
+        {
+          "@type": "FAQPage",
+          "@id": "https://lumishift.lumi-script.dev/#faq",
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "Are my images or videos ever uploaded to any server?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Never. Lumishift is a 100% browser-side application. When you drop a file, it is read into your browser memory using the FileReader and HTML5 Canvas APIs or decoded via client-side WebAssembly. All compression, scaling, cropping, and encoding operations happen entirely locally on your CPU/GPU. No remote server ever sees or stores your data."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "How do I compress an image while keeping full quality?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "In the Settings panel, set the Quality slider to 100% and ensure the Resolution (Resize) slider is set to 100%. For lossless output without any artifacting, select the PNG format or Lossless WebP. If you convert to JPEG or WebP at 100% quality, Lumishift strips bloated EXIF metadata, camera tags, and thumbnail containers while retaining full pixel fidelity."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "What is the recommended compression setting for web performance?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "For general web pages, blogs, and e-commerce websites, setting the format to WebP with a Quality value between 75% and 85% delivers the best balance. This typically reduces file weight by 60% to 80% while remaining visually indistinguishable from the original to human eyes, significantly boosting Google PageSpeed Insights and Core Web Vitals (Largest Contentful Paint)."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Why did my PNG file size increase after compression?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Web browsers export PNGs from canvas as uncompressed 32-bit TrueColor RGBA by default. If your input PNG had an 8-bit indexed palette (e.g., from pngquant), a basic canvas re-export can increase the byte count. Lumishift features an intelligent 'Color Depth / Quality' slider for PNGs that performs real-time color posterization, reducing redundant palette data so that DEFLATE can compress the PNG effectively in your browser."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "How does resolution scaling help reduce file size?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Modern digital cameras and phone cameras capture images at 4000x3000 pixels or higher, but most website containers display images at 600px to 1920px width. Scaling resolution down to 50% reduces total pixel count by 75%, resulting in a massive file size reduction without any visible loss of sharpness when viewed on digital screens."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Can Lumishift convert animated WebP and MP4 video files?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes. Lumishift includes client-side media detection for animated WebP images and MP4 videos. You can compress animated content directly into modern, lightweight WebM format using browser-side WebAssembly, or extract high-resolution static frames as JPEG or PNG."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Is Lumishift completely free to use?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes, Lumishift is completely free and open-source. Because all processing is performed on your own device rather than on expensive cloud servers, there are no subscription fees, no artificial file size limits, no daily quotas, and no watermarks."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Does Lumishift work offline without an internet connection?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes. Once the web application is loaded in your browser tab, all compression and conversion scripts reside in your local cache. You can disconnect from the internet or use airplane mode, and Lumishift will continue to optimize your images seamlessly."
+              }
+            }
+          ]
+        }
+      ]
+    }
+    </script>
 </head>
   <body>
     <div id="root"></div>
-  <script type="module" src="/index.tsx"></script>
-</body>
+
+    <noscript>
+      <div style="font-family: sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; line-height: 1.6; color: #333;">
+        <h1>Lumishift - Smart Browser-Side Image Compressor & Converter</h1>
+        <p>Lumishift is a free, 100% private client-side image compression tool. Optimize JPEG, PNG, WebP, and WebM media directly in your web browser with zero server uploads.</p>
+        <h2>Key Features</h2>
+        <ul>
+          <li><strong>100% Browser-Side Privacy:</strong> Your photos and graphics never leave your computer or phone. All encoding and processing runs in your local browser sandbox.</li>
+          <li><strong>Full Quality or High Compression:</strong> Choose to preserve 100% full original quality (lossless) or compress up to 90% for ultra-fast web page loading speeds.</li>
+          <li><strong>Next-Gen Web Formats:</strong> Convert legacy images to Google WebP for 25%–35% smaller file sizes with transparency support, or transcode MP4 and animated WebP to lightweight WebM video.</li>
+          <li><strong>Resolution Scaling & Cropping:</strong> Scale dimensions from 10% to 100% and crop images before downloading to reduce unnecessary bandwidth.</li>
+          <li><strong>PNG Color Depth Quantization:</strong> Avoid browser canvas bloat with intelligent palette reduction.</li>
+        </ul>
+        <h2>Frequently Asked Questions</h2>
+        <h3>Are images uploaded to any remote server?</h3>
+        <p>No. Lumishift runs entirely inside your browser memory using HTML5 Canvas and WebAssembly. No files are transmitted or saved to external servers.</p>
+        <h3>How do I preserve full quality?</h3>
+        <p>Set the Quality and Resolution sliders to 100%. Choose PNG for lossless output or WebP/JPEG for maximum visual fidelity with reduced container overhead.</p>
+        <p><em>Please enable JavaScript to use the interactive compression and conversion application.</em></p>
+      </div>
+    </noscript>
+
+    <script type="module" src="/index.tsx"></script>
+  </body>
 </html>

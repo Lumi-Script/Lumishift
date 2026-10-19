@@ -101,6 +101,109 @@ class WebPMuxer {
   }
 }
 
+const processAnimatedImage = async (
+  file: File, 
+  settings: CompressionSettings,
+  targetMimeType: string,
+  onProgress?: (progress: number) => void,
+  signal?: AbortSignal
+): Promise<{ blob: Blob; url: string; width: number; height: number }> => {
+   if (typeof (window as any).ImageDecoder === 'undefined') {
+      throw new Error("Your browser does not support ImageDecoder API for animated images. Please use Chrome/Edge.");
+   }
+
+   let finished = false;
+   signal?.addEventListener('abort', () => { finished = true; });
+
+   const decoder = new (window as any).ImageDecoder({ type: file.type, data: file.stream() });
+   await decoder.tracks.ready;
+   
+   const track = decoder.tracks.selectedTrack;
+   if (!track) throw new Error("No animated track found.");
+   
+   const frameCount = track.frameCount;
+   if (frameCount <= 1) throw new Error("Image is not animated.");
+   
+   const firstFrameRes = await decoder.decode({ frameIndex: 0 });
+   const originalWidth = firstFrameRes.image.displayWidth;
+   const originalHeight = firstFrameRes.image.displayHeight;
+   
+   const width = Math.round(originalWidth * settings.scale);
+   const height = Math.round(originalHeight * settings.scale);
+   const targetWidth = Math.max(2, width % 2 === 0 ? width : width - 1);
+   const targetHeight = Math.max(2, height % 2 === 0 ? height : height - 1);
+
+   const canvas = document.createElement('canvas');
+   canvas.width = targetWidth;
+   canvas.height = targetHeight;
+   const ctx = canvas.getContext('2d');
+   if (!ctx) throw new Error("No canvas context");
+
+   const isWebp = targetMimeType === 'image/webp';
+   const webPMuxer = isWebp ? new WebPMuxer(targetWidth, targetHeight) : null;
+   
+   const muxer = !isWebp ? new Muxer({
+     target: new ArrayBufferTarget(),
+     video: { codec: 'V_VP8', width: targetWidth, height: targetHeight },
+     fastStart: 'in-memory'
+   }) : null;
+
+   const videoEncoder = new VideoEncoder({
+     output: (chunk, meta) => {
+        const currentMediaTime = chunk.timestamp / 1000000;
+        if (isWebp && webPMuxer) {
+            webPMuxer.addVideoChunk(chunk, currentMediaTime);
+        } else if (muxer) {
+            muxer.addVideoChunk(chunk, meta);
+        }
+     },
+     error: (e) => { throw new Error("VideoEncoder error: " + e.message); }
+   });
+
+   videoEncoder.configure({
+     codec: 'vp8',
+     width: targetWidth,
+     height: targetHeight,
+     bitrate: 1e6 * (0.1 + settings.quality * 2)
+   });
+
+   let currentTime = 0;
+   
+   for (let i = 0; i < frameCount; i++) {
+       if (finished) break;
+       const { image } = await decoder.decode({ frameIndex: i });
+       
+       ctx.drawImage(image, 0, 0, targetWidth, targetHeight);
+       
+       const dur = image.duration || Math.round(1000000 / 24);
+       const timestamp = currentTime;
+       const frame = new VideoFrame(canvas, { timestamp });
+       
+       videoEncoder.encode(frame, { keyFrame: isWebp });
+       frame.close();
+       image.close();
+       
+       currentTime += dur;
+       if (onProgress) onProgress(Math.min(0.99, i / frameCount));
+       
+       // yield to main thread so abort controller can fire
+       await new Promise(r => setTimeout(r, 0));
+   }
+
+   if (finished) throw new Error("Aborted");
+
+   if (onProgress) onProgress(1.0);
+   await videoEncoder.flush();
+   
+   let blob;
+   if (isWebp && webPMuxer) blob = webPMuxer.finalize();
+   else if (muxer) { muxer.finalize(); blob = new Blob([muxer.target.buffer], { type: 'video/webm' }); }
+   else throw new Error("No muxer initialized");
+   
+   const resultUrl = URL.createObjectURL(blob);
+   return { blob, url: resultUrl, width: targetWidth, height: targetHeight };
+};
+
 export const convertVideoToWebm = async (
   file: File, 
   settings: CompressionSettings,
@@ -108,6 +211,10 @@ export const convertVideoToWebm = async (
   onProgress?: (progress: number) => void,
   signal?: AbortSignal
 ): Promise<{ blob: Blob; url: string; width: number; height: number }> => {
+  if (file.type.startsWith('image/')) {
+      return processAnimatedImage(file, settings, targetMimeType, onProgress, signal);
+  }
+
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
         return reject(new Error("Aborted"));
